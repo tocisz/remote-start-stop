@@ -1,0 +1,92 @@
+extern crate thrussh;
+extern crate thrussh_keys;
+extern crate tokio;
+use std::sync::Arc;
+use self::thrussh::*;
+use self::thrussh::client::Connection;
+use self::thrussh_keys::*;
+use self::tokio::prelude::*;
+use self::tokio::net::TcpStream;
+
+use super::config as config;
+use Command;
+
+struct Client {
+    key: Arc<thrussh_keys::key::KeyPair>,
+    host: String
+}
+
+impl client::Handler for Client {
+    type Error = ();
+    type FutureBool = futures::Finished<(Self, bool), Self::Error>;
+    type FutureUnit = futures::Finished<Self, Self::Error>;
+    type FutureSign = futures::Finished<(Self, thrussh::CryptoVec), Self::Error>;
+    type SessionUnit = futures::Finished<(Self, client::Session), Self::Error>;
+    fn check_server_key(self, server_public_key: &key::PublicKey) -> Self::FutureBool {
+        println!("check_server_key: {:?}", server_public_key);
+        futures::finished((self, true))
+    }
+    fn channel_open_confirmation(self, channel: ChannelId, session: client::Session) -> Self::SessionUnit {
+        println!("channel_open_confirmation: {:?}", channel);
+        futures::finished((self, session))
+    }
+    fn data(self, channel: ChannelId, ext: Option<u32>, data: &[u8], session: client::Session) -> Self::SessionUnit {
+        let str = std::str::from_utf8(data);
+        match str {
+            Ok(s) => println!("data on channel {:?} {:?}:\n{}", ext, channel, s),
+            Err(e) => println!("invalid data on channel {:?} {:?}: {:?}", ext, channel, e)
+        }
+        futures::finished((self, session))
+    }
+    fn auth_banner(self, banner: &str) -> Self::FutureUnit {
+        println!("banner {}", banner);
+        futures::finished(self)
+    }
+    fn channel_eof(self, channel: ChannelId, session: client::Session) -> Self::SessionUnit {
+        println!("received EOF on {:?}", channel);
+        futures::finished((self, session))
+    }
+}
+
+impl Client {
+
+    fn run(self, config: Arc<client::Config>, cmd: &str) {
+        let key = self.key.clone();
+        let host = self.host.clone();
+        let cmd = String::from(cmd);
+        let connect_future =
+            client::connect_future(host, config, None, self, |connection: Connection<TcpStream,Client>| {
+                connection.authenticate_key("root", key).and_then(|connection| {
+                    connection.channel_open_session().and_then(move |(mut connection, chan)| {
+                        connection.exec(
+                            chan,
+                            true,
+                            &cmd,
+                        );
+                        connection.flush().unwrap();
+                        connection.wait(move |connection| {
+                            !connection.is_channel_open(chan)
+                        }).and_then(|mut connection|{
+                            connection.disconnect(Disconnect::ByApplication, "Ciao", "");
+                            connection
+                        })
+                    })
+                })
+            }).unwrap().map_err(|_| {()});
+
+        tokio::run(connect_future)
+    }
+}
+
+pub fn execute(config: config::Config, cmd: Command) {
+    let client_key = thrussh_keys::decode_secret_key(&config.key, None).unwrap();
+    let mut client_config = thrussh::client::Config::default();
+    client_config.connection_timeout = Some(std::time::Duration::from_secs(6));
+    let client_config = Arc::new(client_config);
+    let sh = Client {
+        key: Arc::new(client_key),
+        host: String::from(config.host)
+    };
+    let cmd = config.command[cmd].as_ref().unwrap();
+    sh.run(client_config, &cmd.command)
+}
