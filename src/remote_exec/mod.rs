@@ -1,9 +1,10 @@
 extern crate thrussh;
 extern crate thrussh_keys;
 extern crate tokio;
+
 use std::sync::Arc;
 use self::thrussh::*;
-use self::thrussh::client::Connection;
+use self::thrussh::client::{Connection, Config};
 use self::thrussh_keys::*;
 use self::tokio::prelude::*;
 use self::tokio::net::TcpStream;
@@ -11,8 +12,10 @@ use self::tokio::net::TcpStream;
 use super::config as config;
 use Command;
 
-struct Client {
+pub struct Client {
     key: Arc<thrussh_keys::key::KeyPair>,
+    client_conf: Arc<Config>,
+    config: config::Config,
     host: String
 }
 
@@ -50,10 +53,16 @@ impl client::Handler for Client {
 
 impl Client {
 
-    fn run(self, config: Arc<client::Config>, cmd: &str) {
+    pub fn run(self, cmd: Command) {
+        let cmd_str;
+        {
+            let cmd = self.config.command[cmd].as_ref().unwrap();
+            cmd_str = cmd.command.clone();
+        }
         let key = self.key.clone();
         let host = self.host.clone();
-        let cmd = String::from(cmd);
+        let config = self.client_conf.clone();
+
         let connect_future =
             client::connect_future(host, config, None, self, |connection: Connection<TcpStream,Client>| {
                 connection.authenticate_key("root", key).and_then(|connection| {
@@ -61,7 +70,7 @@ impl Client {
                         connection.exec(
                             chan,
                             true,
-                            &cmd,
+                            &cmd_str,
                         );
                         connection.flush().unwrap();
                         connection.wait(move |connection| {
@@ -76,17 +85,25 @@ impl Client {
 
         tokio::run(connect_future)
     }
+
+    pub fn new(config: config::Config) -> Client {
+        let client_key = thrussh_keys::decode_secret_key(&config.key, None).unwrap();
+        let mut client_config = thrussh::client::Config::default();
+        client_config.connection_timeout = Some(std::time::Duration::from_secs(6));
+        Client {
+            key: Arc::new(client_key),
+            client_conf: Arc::new(client_config),
+            host: String::from(config.host.clone()),
+            config
+        }
+    }
+
+
 }
 
 pub fn execute(config: config::Config, cmd: Command) {
-    let client_key = thrussh_keys::decode_secret_key(&config.key, None).unwrap();
-    let mut client_config = thrussh::client::Config::default();
-    client_config.connection_timeout = Some(std::time::Duration::from_secs(6));
-    let client_config = Arc::new(client_config);
-    let sh = Client {
-        key: Arc::new(client_key),
-        host: String::from(config.host)
-    };
-    let cmd = config.command[cmd].as_ref().unwrap();
-    sh.run(client_config, &cmd.command)
+    // It's unfortunate that we consume config object.
+    // Client has to consume self when executing run() method due to connect_future contract
+    // and that makes running more than one command impossible (without cloning Config)
+    Client::new(config).run(cmd)
 }

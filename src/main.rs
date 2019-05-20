@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate enum_map;
 
+use remote_exec::execute;
+
 mod remote_exec;
 mod config;
 
@@ -22,8 +24,10 @@ fn main() {
     let config = config::Config::from_file().unwrap();
     println!("{:?}", config);
     let link = config.link.clone(); // config could have two parts to be consumed independently
-    remote_exec::execute(config, Command::Start);
+    //let client = remote_exec::Client::new(config);
+    execute(config, Command::Start);
     println!("{}", "done");
     print!("{}", link);
     opener::open(link).expect("Can't open browser");
+    //client.run(Command::Stop);
 }
