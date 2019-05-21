@@ -62,13 +62,14 @@ impl Client {
             let cmd = self.config.command[cmd].as_ref().unwrap();
             cmd_str = cmd.command.clone();
         }
+        let username = self.config.username.clone();
         let key = self.key.clone();
         let host = self.config.host.clone();
         let config = self.client_conf.clone();
 
         let connect_future =
-            client::connect_future(host, config, None, self, |connection: Connection<TcpStream,Client>| {
-                connection.authenticate_key("root", key).and_then(|connection| {
+            client::connect_future(host, config, None, self, move |connection: Connection<TcpStream,Client>| {
+                connection.authenticate_key(&username, key).and_then(|connection| {
                     connection.channel_open_session().and_then(move |(mut connection, chan)| {
                         connection.exec(
                             chan,

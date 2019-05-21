@@ -9,6 +9,7 @@ use super::CommandData;
 
 #[derive(Debug)]
 pub struct Config {
+    pub username: String,
     pub key: String,
     pub host: String,
     pub link: String,
@@ -69,6 +70,13 @@ impl Config {
         let yaml = YamlLoader::load_from_str(&contents)?;
         let yaml: &yaml::Yaml = yaml.get(0).unwrap();
 
+        let username;
+        if let Some(h) = yaml["username"].as_str() {
+            username = String::from(h);
+        } else {
+            return Err(ConfigError::Missing("username"));
+        }
+
         let host;
         if let Some(h) = yaml["host"].as_str() {
             host = String::from(h);
@@ -95,7 +103,7 @@ impl Config {
         read_enum(&mut command, yaml, Command::Stop, "stop", "stop.command", "stop.expected")?;
         read_enum(&mut command, yaml, Command::Status, "status", "status.command", "status.expected")?;
 
-        Ok(Config {host, key, link, command})
+        Ok(Config {username, key, host, link, command})
     }
 
 }
