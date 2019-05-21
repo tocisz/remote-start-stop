@@ -35,6 +35,19 @@ impl From<yaml_rust::ScanError> for ConfigError {
     }
 }
 
+fn read_string(yaml: &yaml::Yaml,
+               key: &'static str) -> Result<String,ConfigError>
+{
+    let s;
+    if let Some(r) = yaml[key].as_str() {
+        s = String::from(r);
+    } else {
+        return Err(ConfigError::Missing(key));
+    }
+
+    Ok(s)
+}
+
 fn read_enum(commands: &mut EnumMap<Command,Option<CommandData>>,
              yaml: &yaml::Yaml,
              com: Command,
@@ -68,35 +81,12 @@ impl Config {
     pub fn from_file() -> Result<Config,ConfigError> {
         let contents = fs::read_to_string("config.yml")?;
         let yaml = YamlLoader::load_from_str(&contents)?;
-        let yaml: &yaml::Yaml = yaml.get(0).unwrap();
+        let yaml = yaml.get(0).unwrap();
 
-        let username;
-        if let Some(h) = yaml["username"].as_str() {
-            username = String::from(h);
-        } else {
-            return Err(ConfigError::Missing("username"));
-        }
-
-        let host;
-        if let Some(h) = yaml["host"].as_str() {
-            host = String::from(h);
-        } else {
-            return Err(ConfigError::Missing("host"));
-        }
-
-        let key;
-        if let Some(k) = yaml["key"].as_str() {
-            key = String::from(k);
-        } else {
-            return Err(ConfigError::Missing("key"));
-        }
-
-        let link;
-        if let Some(k) = yaml["link"].as_str() {
-            link = String::from(k);
-        } else {
-            return Err(ConfigError::Missing("link"));
-        }
+        let username= read_string(&yaml, "username")?;
+        let host = read_string(&yaml, "host")?;
+        let key = read_string(&yaml, "key")?;
+        let link= read_string(&yaml, "link")?;
 
         let mut command: EnumMap<Command, Option<CommandData>> = EnumMap::new();
         read_enum(&mut command, yaml, Command::Start, "start", "start.command", "start.expected")?;
