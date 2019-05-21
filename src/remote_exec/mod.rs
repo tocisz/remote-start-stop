@@ -12,11 +12,11 @@ use self::tokio::net::TcpStream;
 use super::config as config;
 use Command;
 
+#[derive(Clone)]
 pub struct Client {
     key: Arc<thrussh_keys::key::KeyPair>,
     client_conf: Arc<Config>,
-    config: config::Config,
-    host: String
+    config: Arc<config::Config>
 }
 
 impl client::Handler for Client {
@@ -52,15 +52,18 @@ impl client::Handler for Client {
 }
 
 impl Client {
+    pub fn run(&self, cmd: Command) {
+        self.clone().run_and_consume(cmd)
+    }
 
-    pub fn run(self, cmd: Command) {
+    fn run_and_consume(self, cmd: Command) {
         let cmd_str;
         {
             let cmd = self.config.command[cmd].as_ref().unwrap();
             cmd_str = cmd.command.clone();
         }
         let key = self.key.clone();
-        let host = self.host.clone();
+        let host = self.config.host.clone();
         let config = self.client_conf.clone();
 
         let connect_future =
@@ -93,17 +96,9 @@ impl Client {
         Client {
             key: Arc::new(client_key),
             client_conf: Arc::new(client_config),
-            host: String::from(config.host.clone()),
-            config
+            config: Arc::new(config)
         }
     }
 
 
-}
-
-pub fn execute(config: config::Config, cmd: Command) {
-    // It's unfortunate that we consume config object.
-    // Client has to consume self when executing run() method due to connect_future contract
-    // and that makes running more than one command impossible (without cloning Config)
-    Client::new(config).run(cmd)
 }
