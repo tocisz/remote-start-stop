@@ -1,6 +1,6 @@
 # Remote start stop
 
-This tool allows simply starting / stopping remote service thru SSH and opening web browser.
+This tool allows simply starting / stopping remote service through SSH and opening web browser.
 
 ## Building
 
