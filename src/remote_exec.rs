@@ -89,7 +89,7 @@ impl Client {
                                 connection
                             })
                         })
-                })
+                    })
             })?;
 
         let mut runtime : Runtime = Runtime::new().unwrap();
