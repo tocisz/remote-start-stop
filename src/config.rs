@@ -1,4 +1,5 @@
 extern crate yaml_rust;
+
 use self::yaml_rust as yaml;
 use self::yaml_rust::{Yaml, YamlLoader};
 use std::fs;
@@ -13,14 +14,14 @@ pub struct Config {
     pub key: String,
     pub host: String,
     pub link: String,
-    pub command: EnumMap<Command, Option<CommandData>>
+    pub command: EnumMap<Command, Option<CommandData>>,
 }
 
 #[derive(Debug)]
 pub enum ConfigError {
     IoError(io::Error),
     YamlError(yaml_rust::ScanError),
-    Missing(&'static str)
+    Missing(&'static str),
 }
 
 impl From<io::Error> for ConfigError {
@@ -36,7 +37,7 @@ impl From<yaml_rust::ScanError> for ConfigError {
 }
 
 fn read_string(yaml: &yaml::Yaml,
-               key: &'static str) -> Result<String,ConfigError>
+               key: &'static str) -> Result<String, ConfigError>
 {
     let s;
     if let Some(r) = yaml[key].as_str() {
@@ -48,29 +49,39 @@ fn read_string(yaml: &yaml::Yaml,
     Ok(s)
 }
 
-fn read_enum(commands: &mut EnumMap<Command,Option<CommandData>>,
+fn read_enum(commands: &mut EnumMap<Command, Option<CommandData>>,
              yaml: &yaml::Yaml,
              com: Command,
              key: &str,
              e1: &'static str,
-             e2: &'static str) -> Result<(),ConfigError>
+             e2: &'static str) -> Result<(), ConfigError>
 {
     if let Some(start) = yaml[key].as_hash() {
         let c;
-        if let Some(cc) = start[&Yaml::String(String::from("command"))].as_str() {
-            c  = cc;
+        let key = Yaml::String(String::from("command"));
+        if start.contains_key(&key) {
+            if let Some(cc) = start[&key].as_str() {
+                c = cc;
+            } else {
+                return Err(ConfigError::Missing(e1));
+            }
         } else {
             return Err(ConfigError::Missing(e1));
         }
         let ex;
-        if let Some(e) = start[&Yaml::String(String::from("expected"))].as_str() {
-            ex  = e;
+        let key = Yaml::String(String::from("expected"));
+        if start.contains_key(&key) {
+            if let Some(e) = start[&key].as_str() {
+                ex = e;
+            } else {
+                return Err(ConfigError::Missing(e2));
+            }
         } else {
             return Err(ConfigError::Missing(e2));
         }
-        commands[com] = Some(CommandData{
+        commands[com] = Some(CommandData {
             command: String::from(c),
-            expected: String::from(ex)
+            expected: String::from(ex),
         });
     }
 
@@ -78,22 +89,21 @@ fn read_enum(commands: &mut EnumMap<Command,Option<CommandData>>,
 }
 
 impl Config {
-    pub fn from_file() -> Result<Config,ConfigError> {
+    pub fn from_file() -> Result<Config, ConfigError> {
         let contents = fs::read_to_string("config.yml")?;
         let yaml = YamlLoader::load_from_str(&contents)?;
         let yaml = yaml.get(0).unwrap();
 
-        let username= read_string(&yaml, "username")?;
+        let username = read_string(&yaml, "username")?;
         let host = read_string(&yaml, "host")?;
         let key = read_string(&yaml, "key")?;
-        let link= read_string(&yaml, "link")?;
+        let link = read_string(&yaml, "link")?;
 
         let mut command: EnumMap<Command, Option<CommandData>> = EnumMap::new();
         read_enum(&mut command, yaml, Command::Start, "start", "start.command", "start.expected")?;
         read_enum(&mut command, yaml, Command::Stop, "stop", "stop.command", "stop.expected")?;
         read_enum(&mut command, yaml, Command::Status, "status", "status.command", "status.expected")?;
 
-        Ok(Config {username, key, host, link, command})
+        Ok(Config { username, key, host, link, command })
     }
-
 }

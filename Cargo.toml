@@ -1,7 +1,7 @@
 [package]
 name = "odroidssh"
 version = "0.1.0"
-authors = ["Tomasz Cichocki <tomasz.cichocki@optiva.com>"]
+authors = ["Tomasz Cichocki <cichymail@gmail.com>"]
 
 [dependencies]
 thrussh = "0.21.2"

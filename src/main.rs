@@ -19,14 +19,29 @@ pub struct CommandData {
 
 fn main() {
     env_logger::init();
-    let config = config::Config::from_file().unwrap();
-    let link = config.link.clone(); // config could have two parts to be consumed independently
-    println!("Create SSH client.");
-    let client = remote_exec::Client::new(config);
-    println!("Executing {:?}... ", Command::Start);
-    client.run(Command::Start);
-    println!("done");
-    print!("Opening {}", link);
-    opener::open(link).expect("Can't open browser");
-    //client.run(Command::Stop);
+    match config::Config::from_file() {
+        Ok(config) => {
+            let link = config.link.clone(); // config could have two parts to be consumed independently
+            println!("Create SSH client.");
+            match remote_exec::Client::new(config) {
+                Ok(client) => {
+                    println!("Executing {:?}... ", Command::Start);
+                    if let Err(err) = client.run(Command::Start){
+                        eprintln!("{:?}", err);
+                    } else {
+                        println!("done");
+                    }
+                    //print!("Opening {}", link);
+                    //opener::open(link).expect("Can't open browser");
+                    //client.run(Command::Stop);
+                },
+                Err(e) => {
+                    eprintln!("Can't create SSH client: {:?}", e)
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Invalid configuration file: {:?}", e)
+        }
+    }
 }

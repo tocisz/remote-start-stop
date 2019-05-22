@@ -8,15 +8,17 @@ use self::thrussh::client::{Connection, Config};
 use self::thrussh_keys::*;
 use self::tokio::prelude::*;
 use self::tokio::net::TcpStream;
+use self::tokio::runtime::Runtime;
 
 use super::config as config;
 use Command;
+use std::result::Result;
 
 #[derive(Clone)]
 pub struct Client {
     key: Arc<thrussh_keys::key::KeyPair>,
     client_conf: Arc<Config>,
-    config: Arc<config::Config>
+    config: Arc<config::Config>,
 }
 
 impl client::Handler for Client {
@@ -52,11 +54,11 @@ impl client::Handler for Client {
 }
 
 impl Client {
-    pub fn run(&self, cmd: Command) {
+    pub fn run(&self, cmd: Command) -> Result<(),ClientError> {
         self.clone().run_and_consume(cmd)
     }
 
-    fn run_and_consume(self, cmd: Command) {
+    fn run_and_consume(self, cmd: Command) -> Result<(),ClientError> {
         let cmd_str;
         {
             let cmd = self.config.command[cmd].as_ref().unwrap();
@@ -68,38 +70,62 @@ impl Client {
         let config = self.client_conf.clone();
 
         let connect_future =
-            client::connect_future(host, config, None, self, move |connection: Connection<TcpStream,Client>| {
-                connection.authenticate_key(&username, key).and_then(|connection| {
-                    connection.channel_open_session().and_then(move |(mut connection, chan)| {
-                        connection.exec(
-                            chan,
-                            true,
-                            &cmd_str,
-                        );
-                        connection.flush().unwrap();
-                        connection.wait(move |connection| {
-                            !connection.is_channel_open(chan)
-                        }).and_then(|mut connection|{
-                            connection.disconnect(Disconnect::ByApplication, "Ciao", "");
-                            connection
+            client::connect_future(host, config, None, self, move |connection: Connection<TcpStream, Client>| {
+                connection.authenticate_key(&username, key) // what if authentication fails?
+                    .and_then(|connection| {
+                        // we could check connection.is_authenticated()
+                        connection.channel_open_session().and_then(move |(mut connection, chan)| {
+                            // we could check connection.is_channel_open()
+                            connection.exec(
+                                chan,
+                                true,
+                                &cmd_str,
+                            );
+                            connection.flush().unwrap(); // How to handle?
+                            connection.wait(move |connection| {
+                                !connection.is_channel_open(chan)
+                            }).and_then(|mut connection| {
+                                connection.disconnect(Disconnect::ByApplication, "Ciao", "");
+                                connection
+                            })
                         })
-                    })
                 })
-            }).unwrap().map_err(|_| {()});
+            })?;
 
-        tokio::run(connect_future)
+        let mut runtime : Runtime = Runtime::new().unwrap();
+        if let Err(e) = runtime.block_on(connect_future) {
+            return Err(ClientError::ConnectionProblem(format!("{:?}", e)));
+        }
+        Ok(())
     }
 
-    pub fn new(config: config::Config) -> Client {
-        let client_key = thrussh_keys::decode_secret_key(&config.key, None).unwrap();
+    pub fn new(config: config::Config) -> Result<Client, ClientError> {
+        let client_key = thrussh_keys::decode_secret_key(&config.key, None)?;
         let mut client_config = thrussh::client::Config::default();
         client_config.connection_timeout = Some(std::time::Duration::from_secs(6));
-        Client {
+        Ok(Client {
             key: Arc::new(client_key),
             client_conf: Arc::new(client_config),
-            config: Arc::new(config)
-        }
+            config: Arc::new(config),
+        })
     }
+}
 
+#[derive(Debug)]
+pub enum ClientError {
+    DecodeKey(thrussh_keys::Error),
+    ConnectionProblem(String),
+    FutureProblem(thrussh::Error)
+}
 
+impl From<thrussh_keys::Error> for ClientError {
+    fn from(error: thrussh_keys::Error) -> Self {
+        ClientError::DecodeKey(error)
+    }
+}
+
+impl From<thrussh::Error> for ClientError {
+    fn from(error: thrussh::Error) -> Self {
+        ClientError::FutureProblem(error)
+    }
 }
