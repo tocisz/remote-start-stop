@@ -17,31 +17,53 @@ pub struct CommandData {
     pub expected: String
 }
 
+#[derive(Debug)]
+enum TopLevelError {
+    ConfigError(config::ConfigError),
+    ClientError(remote_exec::ClientError),
+    OpenError(opener::OpenError)
+}
+
+fn execute_and_open() -> Result<(),TopLevelError> {
+    let config = config::Config::from_file()?;
+    let link = config.link.clone(); // config could have two parts to be consumed independently
+    println!("Create SSH client.");
+    let client = remote_exec::Client::new(config)?;
+    println!("Executing {:?}... ", Command::Start);
+    client.run(Command::Start)?;
+    println!("done");
+    print!("Opening {}", link);
+    opener::open(link)?;
+    Ok(())
+}
+
 fn main() {
     env_logger::init();
-    match config::Config::from_file() {
-        Ok(config) => {
-            let link = config.link.clone(); // config could have two parts to be consumed independently
-            println!("Create SSH client.");
-            match remote_exec::Client::new(config) {
-                Ok(client) => {
-                    println!("Executing {:?}... ", Command::Start);
-                    if let Err(err) = client.run(Command::Start){
-                        eprintln!("{:?}", err);
-                    } else {
-                        println!("done");
-                    }
-                    //print!("Opening {}", link);
-                    //opener::open(link).expect("Can't open browser");
-                    //client.run(Command::Stop);
-                },
-                Err(e) => {
-                    eprintln!("Can't create SSH client: {:?}", e)
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("Invalid configuration file: {:?}", e)
-        }
+    match execute_and_open() {
+        Ok(()) => (),
+        Err(TopLevelError::ConfigError(e)) =>
+            eprintln!("Invalid configuration file: {:?}", e),
+        Err(TopLevelError::ClientError(e)) =>
+            eprintln!("SSH client error: {:?}", e),
+        Err(TopLevelError::OpenError(e)) =>
+            eprintln!("Error opening browser: {:?}", e),
+    }
+}
+
+impl From<config::ConfigError> for TopLevelError {
+    fn from(error: config::ConfigError) -> Self {
+        TopLevelError::ConfigError(error)
+    }
+}
+
+impl From<remote_exec::ClientError> for TopLevelError {
+    fn from(error: remote_exec::ClientError) -> Self {
+        TopLevelError::ClientError(error)
+    }
+}
+
+impl From<opener::OpenError> for TopLevelError {
+    fn from(error: opener::OpenError) -> Self {
+        TopLevelError::OpenError(error)
     }
 }
