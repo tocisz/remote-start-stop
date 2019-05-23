@@ -12,6 +12,7 @@ use self::tokio::runtime::Runtime;
 
 use super::config as config;
 use std::result::Result;
+use TopLevelError;
 
 #[derive(Clone)]
 pub struct Client {
@@ -52,11 +53,18 @@ impl client::Handler for Client {
     }
 }
 
-impl Client {
-    pub fn run(&self, cmd: &String) -> Result<(),ClientError> {
-        self.clone().run_and_consume(cmd)
+impl super::Runner for Client {
+    fn has_command(&self, cmd: &String) -> bool {
+        self.config.commands.contains_key(cmd)
     }
 
+    fn run(&self, cmd: &String) -> Result<(), TopLevelError> {
+        self.clone().run_and_consume(cmd)
+            .map_err(|e| TopLevelError::ClientError(e))
+    }
+}
+
+impl Client {
     fn run_and_consume(self, cmd: &String) -> Result<(),ClientError> {
         let cmd_str;
         {

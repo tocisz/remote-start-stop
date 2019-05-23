@@ -1,4 +1,8 @@
+extern crate core;
+
 use std::env;
+use config::OpenerConfig;
+use std::rc::Rc;
 
 mod remote_exec;
 mod config;
@@ -16,20 +20,48 @@ enum TopLevelError {
     OpenError(opener::OpenError)
 }
 
+trait Runner {
+    fn has_command(&self, cmd: &String) -> bool;
+    fn run(&self, cmd: &String) -> Result<(), TopLevelError>;
+}
+
+struct Opener {
+    config: OpenerConfig
+}
+
+impl Runner for Opener {
+    fn has_command(&self, cmd: &String) -> bool {
+        cmd == "open"
+    }
+    fn run(&self, _cmd: &String) -> Result<(), TopLevelError> {
+        opener::open(&self.config.link)
+            .map_err(|e| TopLevelError::OpenError(e))
+    }
+}
+
+
 fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
     let config = config::Config::from_file()?;
 
     println!("Create SSH client.");
     let client = remote_exec::Client::new(config.ssh)?;
+    let opener = Opener{config: config.opener};
+
+    let mods = vec![
+        Rc::new(&client as &Runner),
+        Rc::new(&opener as &Runner)
+    ];
+
     for cmd in commands.iter().skip(1) {
-        println!("Executing {}... ", cmd);
-        client.run(&cmd)?;
-        println!("done");
+        for m in &mods {
+            if m.has_command(&cmd) {
+                println!("Executing {}... ", cmd);
+                m.run(&cmd)?;
+                println!("done");
+            }
+        }
     }
 
-    let cnf = config.opener;
-    print!("Opening {}", cnf.link);
-    opener::open(cnf.link)?;
     Ok(())
 }
 
