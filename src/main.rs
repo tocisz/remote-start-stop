@@ -1,3 +1,5 @@
+use std::env;
+
 mod remote_exec;
 mod config;
 
@@ -14,22 +16,29 @@ enum TopLevelError {
     OpenError(opener::OpenError)
 }
 
-fn execute_and_open() -> Result<(),TopLevelError> {
+fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
     let config = config::Config::from_file()?;
     let link = config.link.clone(); // config could have two parts to be consumed independently
     println!("Create SSH client.");
     let client = remote_exec::Client::new(config)?;
-    println!("Executing start... ");
-    client.run(&String::from("start"))?;
-    println!("done");
+    for cmd in commands.iter().skip(1) {
+        println!("Executing {}... ", cmd);
+        client.run(&cmd)?;
+        println!("done");
+    }
     print!("Opening {}", link);
     opener::open(link)?;
     Ok(())
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Please give command to execute");
+        return;
+    }
     env_logger::init();
-    match execute_and_open() {
+    match execute_and_open(args) {
         Ok(()) => (),
         Err(TopLevelError::ConfigError(e)) =>
             eprintln!("Invalid configuration file: {:?}", e),
