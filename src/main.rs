@@ -1,8 +1,8 @@
 extern crate core;
+extern crate env_logger;
 
 use std::env;
 use config::OpenerConfig;
-use std::rc::Rc;
 
 mod remote_exec;
 mod config;
@@ -47,18 +47,20 @@ fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
     let client = remote_exec::Client::new(config.ssh)?;
     let opener = Opener{config: config.opener};
 
-    let mods = vec![
-        Rc::new(&client as &Runner),
-        Rc::new(&opener as &Runner)
-    ];
+    let mods: Vec<&Runner> = vec![&client, &opener];
 
     for cmd in commands.iter().skip(1) {
+        let mut executed = false;
         for m in &mods {
             if m.has_command(&cmd) {
                 println!("Executing {}... ", cmd);
                 m.run(&cmd)?;
                 println!("done");
+                executed = true;
             }
+        }
+        if !executed {
+            println!("WARNING: Command {} not known!", cmd);
         }
     }
 
