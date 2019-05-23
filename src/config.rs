@@ -9,11 +9,21 @@ use super::CommandData;
 
 #[derive(Debug)]
 pub struct Config {
+    pub ssh: SshConfig,
+    pub opener: OpenerConfig,
+}
+
+#[derive(Debug)]
+pub struct SshConfig {
     pub username: String,
     pub key: String,
     pub host: String,
-    pub link: String,
     pub commands: HashMap<String, CommandData>,
+}
+
+#[derive(Debug)]
+pub struct OpenerConfig {
+    pub link: String,
 }
 
 #[derive(Debug)]
@@ -95,11 +105,17 @@ impl Config {
         let yaml = YamlLoader::load_from_str(&contents)?;
         let yaml = yaml.get(0).unwrap();
 
-        let username = read_string(yaml, "username")?;
-        let host = read_string(yaml, "host")?;
-        let key = read_string(yaml, "key")?;
-        let link = read_string(yaml, "link")?;
-        let commands = read_commands(&yaml["commands"])?;
-        Ok(Config { username, key, host, link, commands })
+        let ssh_yaml = &yaml["ssh"];
+        let username = read_string(ssh_yaml, "username")?;
+        let host = read_string(ssh_yaml, "host")?;
+        let key = read_string(ssh_yaml, "key")?;
+        let commands = read_commands(&ssh_yaml["commands"])?;
+        let ssh = SshConfig { username, key, host, commands };
+
+        let opener_yaml = &yaml["opener"];
+        let link = read_string(opener_yaml, "link")?;
+        let opener = OpenerConfig { link };
+
+        Ok(Config { ssh, opener })
     }
 }

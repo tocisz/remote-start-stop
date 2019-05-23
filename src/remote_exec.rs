@@ -5,7 +5,7 @@ extern crate tokio;
 use std::sync::Arc;
 use self::thrussh::*;
 use self::thrussh::client::{Connection, Config};
-use self::thrussh_keys::*;
+use self::thrussh_keys::key;
 use self::tokio::prelude::*;
 use self::tokio::net::TcpStream;
 use self::tokio::runtime::Runtime;
@@ -17,7 +17,7 @@ use std::result::Result;
 pub struct Client {
     key: Arc<thrussh_keys::key::KeyPair>,
     client_conf: Arc<Config>,
-    config: Arc<config::Config>,
+    config: Arc<config::SshConfig>,
 }
 
 impl client::Handler for Client {
@@ -98,7 +98,7 @@ impl Client {
         Ok(())
     }
 
-    pub fn new(config: config::Config) -> Result<Client, ClientError> {
+    pub fn new(config: config::SshConfig) -> Result<Client, ClientError> {
         let client_key = thrussh_keys::decode_secret_key(&config.key, None)?;
         let mut client_config = thrussh::client::Config::default();
         client_config.connection_timeout = Some(std::time::Duration::from_secs(6));

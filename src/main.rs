@@ -18,16 +18,18 @@ enum TopLevelError {
 
 fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
     let config = config::Config::from_file()?;
-    let link = config.link.clone(); // config could have two parts to be consumed independently
+
     println!("Create SSH client.");
-    let client = remote_exec::Client::new(config)?;
+    let client = remote_exec::Client::new(config.ssh)?;
     for cmd in commands.iter().skip(1) {
         println!("Executing {}... ", cmd);
         client.run(&cmd)?;
         println!("done");
     }
-    print!("Opening {}", link);
-    opener::open(link)?;
+
+    let cnf = config.opener;
+    print!("Opening {}", cnf.link);
+    opener::open(cnf.link)?;
     Ok(())
 }
 
