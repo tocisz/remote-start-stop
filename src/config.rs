@@ -77,7 +77,7 @@ fn read_commands(yaml: &yaml::Yaml) -> Result<HashMap<String,CommandData>, Confi
             if let Some(key) = key.as_str() {
                 let prefix = Some(concat_with_dot(prefix,key));
                 let command = read_string_p(value, "command", &prefix)?;
-                let expected = read_string_p(value, "expected", &prefix)?;
+                let expected = read_string_p(value, "expected", &prefix).ok();
                 map.insert(String::from(key),CommandData {command, expected});
             } else {
                 return Err(ConfigError::YamlContents(String::from("Command keys must be strings")))

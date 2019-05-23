@@ -6,7 +6,7 @@ mod config;
 #[derive(Debug)]
 pub struct CommandData {
     pub command: String,
-    pub expected: String
+    pub expected: Option<String>
 }
 
 #[derive(Debug)]
