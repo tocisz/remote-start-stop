@@ -1,11 +1,10 @@
 extern crate yaml_rust;
 
 use self::yaml_rust as yaml;
-use self::yaml_rust::{Yaml, YamlLoader};
+use self::yaml_rust::YamlLoader;
 use std::fs;
 use std::io;
-use enum_map::EnumMap;
-use super::Command;
+use std::collections::HashMap;
 use super::CommandData;
 
 #[derive(Debug)]
@@ -14,14 +13,15 @@ pub struct Config {
     pub key: String,
     pub host: String,
     pub link: String,
-    pub command: EnumMap<Command, Option<CommandData>>,
+    pub commands: HashMap<String, CommandData>,
 }
 
 #[derive(Debug)]
 pub enum ConfigError {
     IoError(io::Error),
     YamlError(yaml_rust::ScanError),
-    Missing(&'static str),
+    YamlContents(String),
+    Missing(String),
 }
 
 impl From<io::Error> for ConfigError {
@@ -36,56 +36,57 @@ impl From<yaml_rust::ScanError> for ConfigError {
     }
 }
 
-fn read_string(yaml: &yaml::Yaml,
-               key: &'static str) -> Result<String, ConfigError>
+fn read_string(yaml: &yaml::Yaml, key: &str) -> Result<String, ConfigError>
+{
+    read_string_p(yaml, key, &None)
+}
+
+fn read_string_p(yaml: &yaml::Yaml, key: &str,
+               prefix: &Option<String>) -> Result<String, ConfigError>
 {
     let s;
     if let Some(r) = yaml[key].as_str() {
         s = String::from(r);
     } else {
-        return Err(ConfigError::Missing(key));
+        return Err(ConfigError::Missing(maybe_concat_with_dot(prefix, key)));
     }
 
     Ok(s)
 }
 
-fn read_enum(commands: &mut EnumMap<Command, Option<CommandData>>,
-             yaml: &yaml::Yaml,
-             com: Command,
-             key: &str,
-             e1: &'static str,
-             e2: &'static str) -> Result<(), ConfigError>
-{
-    if let Some(start) = yaml[key].as_hash() {
-        let c;
-        let key = Yaml::String(String::from("command"));
-        if start.contains_key(&key) {
-            if let Some(cc) = start[&key].as_str() {
-                c = cc;
-            } else {
-                return Err(ConfigError::Missing(e1));
-            }
-        } else {
-            return Err(ConfigError::Missing(e1));
-        }
-        let ex;
-        let key = Yaml::String(String::from("expected"));
-        if start.contains_key(&key) {
-            if let Some(e) = start[&key].as_str() {
-                ex = e;
-            } else {
-                return Err(ConfigError::Missing(e2));
-            }
-        } else {
-            return Err(ConfigError::Missing(e2));
-        }
-        commands[com] = Some(CommandData {
-            command: String::from(c),
-            expected: String::from(ex),
-        });
+fn maybe_concat_with_dot(a: &Option<String>, b: &str) -> String {
+    match a {
+        None => String::from(b),
+        Some(a) => concat_with_dot(a, b)
     }
+}
 
-    Ok(())
+fn concat_with_dot(a: &str, b: &str) -> String {
+    let mut name = String::from(a);
+    name.push('.');
+    name.push_str(b);
+    name
+}
+
+fn read_commands(yaml: &yaml::Yaml) -> Result<HashMap<String,CommandData>, ConfigError>
+{
+    let prefix = "commands";
+    if let Some(yaml_map) = yaml.as_hash() {
+        let mut map = HashMap::new();
+        for (key, value) in yaml_map {
+            if let Some(key) = key.as_str() {
+                let prefix = Some(concat_with_dot(prefix,key));
+                let command = read_string_p(value, "command", &prefix)?;
+                let expected = read_string_p(value, "expected", &prefix)?;
+                map.insert(String::from(key),CommandData {command, expected});
+            } else {
+                return Err(ConfigError::YamlContents(String::from("Command keys must be strings")))
+            }
+        }
+        Ok(map)
+    } else {
+        Err(ConfigError::YamlContents(String::from("Invalid commands map")))
+    }
 }
 
 impl Config {
@@ -94,16 +95,11 @@ impl Config {
         let yaml = YamlLoader::load_from_str(&contents)?;
         let yaml = yaml.get(0).unwrap();
 
-        let username = read_string(&yaml, "username")?;
-        let host = read_string(&yaml, "host")?;
-        let key = read_string(&yaml, "key")?;
-        let link = read_string(&yaml, "link")?;
-
-        let mut command: EnumMap<Command, Option<CommandData>> = EnumMap::new();
-        read_enum(&mut command, yaml, Command::Start, "start", "start.command", "start.expected")?;
-        read_enum(&mut command, yaml, Command::Stop, "stop", "stop.command", "stop.expected")?;
-        read_enum(&mut command, yaml, Command::Status, "status", "status.command", "status.expected")?;
-
-        Ok(Config { username, key, host, link, command })
+        let username = read_string(yaml, "username")?;
+        let host = read_string(yaml, "host")?;
+        let key = read_string(yaml, "key")?;
+        let link = read_string(yaml, "link")?;
+        let commands = read_commands(&yaml["commands"])?;
+        Ok(Config { username, key, host, link, commands })
     }
 }

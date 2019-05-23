@@ -11,7 +11,6 @@ use self::tokio::net::TcpStream;
 use self::tokio::runtime::Runtime;
 
 use super::config as config;
-use Command;
 use std::result::Result;
 
 #[derive(Clone)]
@@ -54,14 +53,14 @@ impl client::Handler for Client {
 }
 
 impl Client {
-    pub fn run(&self, cmd: Command) -> Result<(),ClientError> {
+    pub fn run(&self, cmd: &String) -> Result<(),ClientError> {
         self.clone().run_and_consume(cmd)
     }
 
-    fn run_and_consume(self, cmd: Command) -> Result<(),ClientError> {
+    fn run_and_consume(self, cmd: &String) -> Result<(),ClientError> {
         let cmd_str;
         {
-            let cmd = self.config.command[cmd].as_ref().unwrap();
+            let cmd = &self.config.commands[cmd];
             cmd_str = cmd.command.clone();
         }
         let username = self.config.username.clone();

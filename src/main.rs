@@ -1,15 +1,5 @@
-#[macro_use]
-extern crate enum_map;
-
 mod remote_exec;
 mod config;
-
-#[derive(Enum,Debug)]
-pub enum Command {
-    Start,
-    Stop,
-    Status
-}
 
 #[derive(Debug)]
 pub struct CommandData {
@@ -29,8 +19,8 @@ fn execute_and_open() -> Result<(),TopLevelError> {
     let link = config.link.clone(); // config could have two parts to be consumed independently
     println!("Create SSH client.");
     let client = remote_exec::Client::new(config)?;
-    println!("Executing {:?}... ", Command::Start);
-    client.run(Command::Start)?;
+    println!("Executing start... ");
+    client.run(&String::from("start"))?;
     println!("done");
     print!("Opening {}", link);
     opener::open(link)?;
