@@ -6,15 +6,14 @@ use TopLevelError;
 use std::result::Result;
 use std::net::TcpStream;
 use std::path::Path;
-use std::rc::Rc;
 use std::io::Read;
 use remote_exec::ClientError::{ConnectionProblem, SshProblem};
 
-#[derive(Clone)]
+#[allow(dead_code)]
 pub struct Client {
-    config: Rc<config::SshConfig>,
-    tcp: Rc<TcpStream>,
-    sess: Rc<Session>
+    config: Box<config::SshConfig>,
+    tcp: Box<TcpStream>, // tcp connections needs to live as long and sess
+    sess: Box<Session>
 }
 
 impl super::Runner for Client {
@@ -44,9 +43,9 @@ impl Client {
         // Make sure we succeeded
         if sess.authenticated() {
             Ok(Client {
-                config: Rc::new(config),
-                tcp: Rc::new(tcp),
-                sess: Rc::new(sess)
+                config: Box::new(config),
+                tcp: Box::new(tcp),
+                sess: Box::new(sess)
             })
         } else {
             Err(ClientError::NotAuthenticated)
