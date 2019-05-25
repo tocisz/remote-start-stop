@@ -1,4 +1,4 @@
-extern crate core;
+#[macro_use] extern crate log;
 extern crate env_logger;
 
 use std::env;
@@ -43,7 +43,7 @@ impl Runner for Opener {
 fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
     let config = config::Config::from_file()?;
 
-    println!("Create SSH client.");
+    info!("Create SSH client.");
     let client = remote_exec::Client::new(config.ssh)?;
     let opener = Opener{config: config.opener};
 
@@ -53,14 +53,14 @@ fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
         let mut executed = false;
         for m in &mods {
             if m.has_command(&cmd) {
-                println!("Executing {}... ", cmd);
+                info!("Executing {}... ", cmd);
                 m.run(&cmd)?;
-                println!("done");
+                info!("done");
                 executed = true;
             }
         }
         if !executed {
-            println!("WARNING: Command {} not known!", cmd);
+            warn!("Command {} not known!", cmd);
         }
     }
 
@@ -68,20 +68,22 @@ fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
 }
 
 fn main() {
+    env_logger::init();
+
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        eprintln!("Please give command to execute");
+        error!("Please give command to execute");
         return;
     }
-    env_logger::init();
+
     match execute_and_open(args) {
         Ok(()) => (),
         Err(TopLevelError::ConfigError(e)) =>
-            eprintln!("Invalid configuration file: {:?}", e),
+            error!("Invalid configuration file: {:?}", e),
         Err(TopLevelError::ClientError(e)) =>
-            eprintln!("SSH client error: {:?}", e),
+            error!("SSH client error: {:?}", e),
         Err(TopLevelError::OpenError(e)) =>
-            eprintln!("Error opening browser: {:?}", e),
+            error!("Error opening browser: {:?}", e),
     }
 }
 

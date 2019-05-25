@@ -28,26 +28,26 @@ impl client::Handler for Client {
     type FutureSign = futures::Finished<(Self, thrussh::CryptoVec), Self::Error>;
     type SessionUnit = futures::Finished<(Self, client::Session), Self::Error>;
     fn auth_banner(self, banner: &str) -> Self::FutureUnit {
-        println!("banner {}", banner);
+        debug!("banner {}", banner);
         futures::finished(self)
     }
     fn check_server_key(self, server_public_key: &key::PublicKey) -> Self::FutureBool {
-        println!("check_server_key: {:?}", server_public_key);
+        debug!("check_server_key: {:?}", server_public_key);
         futures::finished((self, true))
     }
     fn channel_open_confirmation(self, channel: ChannelId, session: client::Session) -> Self::SessionUnit {
-        println!("channel_open_confirmation: {:?}", channel);
+        debug!("channel_open_confirmation: {:?}", channel);
         futures::finished((self, session))
     }
     fn channel_eof(self, channel: ChannelId, session: client::Session) -> Self::SessionUnit {
-        println!("received EOF on {:?}", channel);
+        debug!("received EOF on {:?}", channel);
         futures::finished((self, session))
     }
     fn data(self, channel: ChannelId, ext: Option<u32>, data: &[u8], session: client::Session) -> Self::SessionUnit {
         let str = std::str::from_utf8(data);
         match str {
-            Ok(s) => println!("data on channel {:?} {:?}:\n{}", ext, channel, s),
-            Err(e) => println!("invalid data on channel {:?} {:?}: {:?}", ext, channel, e)
+            Ok(s) => debug!("data on channel {:?} {:?}:\n{}", ext, channel, s),
+            Err(e) => warn!("invalid data on channel {:?} {:?}: {:?}", ext, channel, e)
         }
         futures::finished((self, session))
     }
