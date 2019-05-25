@@ -24,7 +24,7 @@ opener:
 ```
 
 With this config file you can use an application to run commands remotely:
- * `odroidssh start open` -- will execute `service x start` through ssh and open `https://host:8080/` in a browser;
- * `odroidssh stop` -- will execute `service x stop` through ssh.
+ * `remote start open` -- will execute `service x start` through ssh and open `https://host:8080/` in a browser;
+ * `remote stop` -- will execute `service x stop` through ssh.
  
  
