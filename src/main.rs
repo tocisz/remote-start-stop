@@ -17,7 +17,8 @@ pub struct CommandData {
 enum TopLevelError {
     ConfigError(config::ConfigError),
     ClientError(remote_exec::ClientError),
-    OpenError(opener::OpenError)
+    OpenError(opener::OpenError),
+    UnsupportedCommands(Vec<String>)
 }
 
 trait Runner {
@@ -39,30 +40,51 @@ impl Runner for Opener {
     }
 }
 
-
-fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
-    let config = config::Config::from_file()?;
-
-    info!("Create SSH client.");
-    let client = remote_exec::Client::new(config.ssh)?;
-    let opener = Opener{config: config.opener};
-
-    let mods: Vec<&Runner> = vec![&client, &opener];
-
+fn check_commands(commands: &Vec<String>, mods: &Vec<&Runner>) -> Result<(),TopLevelError> {
+    let mut unsupported = Vec::new();
     for cmd in commands.iter().skip(1) {
         let mut executed = false;
-        for m in &mods {
+        for m in mods {
             if m.has_command(&cmd) {
-                info!("Executing {}... ", cmd);
-                m.run(&cmd)?;
-                info!("done");
                 executed = true;
             }
         }
         if !executed {
-            warn!("Command {} not known!", cmd);
+            unsupported.push((*cmd).clone());
         }
     }
+    if !unsupported.is_empty() {
+        Err(TopLevelError::UnsupportedCommands(unsupported))
+    } else {
+        Ok(())
+    }
+}
+
+fn execute_commands(commands: &Vec<String>, mods: &Vec<&Runner>) -> Result<(),TopLevelError> {
+    for cmd in commands.iter().skip(1) {
+        for m in mods {
+            if m.has_command(&cmd) {
+                info!("Executing {}... ", cmd);
+                m.run(&cmd)?;
+                info!("done");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
+    let config = config::Config::from_file()?;
+
+    info!("Creating SSH client.");
+    let client = remote_exec::Client::new(config.ssh)?;
+    info!("Creating Opener.");
+    let opener = Opener{config: config.opener};
+
+    let mods: Vec<&Runner> = vec![&client, &opener];
+
+    check_commands(&commands, &mods)?;
+    execute_commands(&commands, &mods)?;
 
     Ok(())
 }
@@ -84,6 +106,11 @@ fn main() {
             error!("SSH client error: {:?}", e),
         Err(TopLevelError::OpenError(e)) =>
             error!("Error opening browser: {:?}", e),
+        Err(TopLevelError::UnsupportedCommands(list)) => {
+            for cmd in &list {
+                error!("Command {} is not supported!", cmd);
+            }
+        }
     }
 }
 
