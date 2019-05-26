@@ -61,6 +61,7 @@ fn check_commands(commands: &Vec<String>, mods: &Vec<&Runner>) -> Result<(),TopL
 }
 
 fn execute_commands(commands: &Vec<String>, mods: &Vec<&Runner>) -> Result<(),TopLevelError> {
+    check_commands(commands, mods)?;
     for cmd in commands.iter().skip(1) {
         for m in mods {
             if m.has_command(&cmd) {
@@ -83,7 +84,6 @@ fn execute_and_open(commands: Vec<String>) -> Result<(),TopLevelError> {
 
     let mods: Vec<&Runner> = vec![&client, &opener];
 
-    check_commands(&commands, &mods)?;
     execute_commands(&commands, &mods)?;
 
     Ok(())
