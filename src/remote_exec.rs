@@ -9,11 +9,11 @@ use std::path::Path;
 use std::io::Read;
 use remote_exec::ClientError::{ConnectionProblem, SshProblem};
 
-#[allow(dead_code)]
 pub struct Client {
     config: Box<config::SshConfig>,
-    tcp: Box<TcpStream>, // tcp connections needs to live as long and sess
-    sess: Box<Session>
+    #[allow(dead_code)]
+    tcp_stream: Box<TcpStream>, // tcp connections needs to live as long and session
+    session: Box<Session>
 }
 
 impl super::Runner for Client {
@@ -35,17 +35,17 @@ impl Client {
 
         {
             let key = config.key.clone();
-            let path = Path::new(&key);
+            let key_path = Path::new(&key);
             // Try to authenticate with the first identity in the agent.
-            sess.userauth_pubkey_file(&config.username, None, path, None)?;
+            sess.userauth_pubkey_file(&config.username, None, key_path, None)?;
         }
 
         // Make sure we succeeded
         if sess.authenticated() {
             Ok(Client {
                 config: Box::new(config),
-                tcp: Box::new(tcp),
-                sess: Box::new(sess)
+                tcp_stream: Box::new(tcp),
+                session: Box::new(sess)
             })
         } else {
             Err(ClientError::NotAuthenticated)
@@ -53,14 +53,14 @@ impl Client {
     }
 
     fn run_internal(&self, cmd: &String) -> Result<(), ClientError> {
-        let cmd = &self.config.commands[cmd];
-        let cmd = &cmd.command;
+        let cmd = &self.config.commands[cmd].command;
 
-        let mut channel = self.sess.channel_session()?;
+        let mut channel = self.session.channel_session()?;
         channel.exec(cmd)?;
-        let mut s = String::new();
-        channel.read_to_string(&mut s)?;
-        println!("Got:\n{}", s);
+        let mut output_string = String::new();
+        channel.read_to_string(&mut output_string)?;
+        println!("Got:\n{}", output_string);
+        // TODO check output_string for expected string
         channel.wait_close()?;
         println!("Exit status: {}", channel.exit_status()?);
 
