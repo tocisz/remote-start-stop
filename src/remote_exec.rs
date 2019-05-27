@@ -29,14 +29,14 @@ impl super::Runner for Client {
 impl Client {
 
     pub fn new(config: config::SshConfig) -> Result<Client, ClientError> {
-        let tcp = TcpStream::connect("odroid:22")?;
+        let tcp = TcpStream::connect(&config.host)?;
         let mut sess = Session::new().ok_or(ClientError::CreateSession)?;
         sess.handshake(&tcp)?;
 
         {
             let key = config.key.clone();
             let key_path = Path::new(&key);
-            // Try to authenticate with the first identity in the agent.
+            // Try to authenticate with given private key file (no passphrase)
             sess.userauth_pubkey_file(&config.username, None, key_path, None)?;
         }
 
